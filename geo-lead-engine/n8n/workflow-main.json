@@ -1,0 +1,748 @@
+{
+  "name": "GEO Lead Engine - Main Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "geo-analyse",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Webhook POST geo-analyse",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [200, 600],
+      "webhookId": "geo-analyse"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "options": {
+          "timeout": 10000,
+          "fullResponse": true
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000010",
+      "name": "HTTP GET Website",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 200],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Schema.org structured data from HTML\nconst html = $input.first().json.body || $input.first().json.data || '';\nconst url = $('Webhook POST geo-analyse').first().json.url || '';\n\nconst schemaTypes = [];\nconst schemas = [];\n\n// Find all <script type=\"application/ld+json\"> blocks\nconst ldJsonRegex = /<script[^>]*type=[\"']application\\/ld\\+json[\"'][^>]*>([\\s\\S]*?)<\\/script>/gi;\nlet match;\n\nwhile ((match = ldJsonRegex.exec(html)) !== null) {\n  try {\n    const parsed = JSON.parse(match[1].trim());\n    const items = Array.isArray(parsed) ? parsed : (parsed['@graph'] ? parsed['@graph'] : [parsed]);\n    for (const item of items) {\n      if (item['@type']) {\n        const types = Array.isArray(item['@type']) ? item['@type'] : [item['@type']];\n        for (const t of types) {\n          schemaTypes.push(t);\n        }\n        schemas.push(item);\n      }\n    }\n  } catch (e) {\n    // malformed JSON-LD, skip\n  }\n}\n\nconst knownTypes = ['Organization', 'LocalBusiness', 'Restaurant', 'FAQPage', 'FAQ', 'Product', 'BreadcrumbList', 'WebSite', 'WebPage', 'Service', 'AggregateRating', 'Review', 'Event', 'Person', 'Place', 'HowTo', 'Article', 'BlogPosting', 'ItemList', 'VideoObject', 'ImageObject'];\n\nconst detectedKnownTypes = schemaTypes.filter(t => knownTypes.includes(t));\nconst hasLocalBusiness = schemaTypes.some(t => ['LocalBusiness', 'Restaurant', 'Store', 'MedicalBusiness', 'LegalService', 'FinancialService', 'FoodEstablishment', 'HealthAndBeautyBusiness', 'HomeAndConstructionBusiness', 'LodgingBusiness', 'SportsActivityLocation', 'EntertainmentBusiness', 'AutomotiveBusiness'].includes(t));\nconst hasFAQ = schemaTypes.some(t => ['FAQPage', 'FAQ'].includes(t));\nconst hasProduct = schemaTypes.includes('Product');\nconst hasBreadcrumb = schemaTypes.includes('BreadcrumbList');\nconst hasOrganization = schemaTypes.includes('Organization');\nconst hasWebSite = schemaTypes.includes('WebSite');\n\n// Extract business info from schema\nlet businessName = '';\nlet businessAddress = '';\nlet businessPhone = '';\nlet businessDescription = '';\n\nfor (const s of schemas) {\n  const types = Array.isArray(s['@type']) ? s['@type'] : [s['@type']];\n  if (types.some(t => ['Organization', 'LocalBusiness', 'Restaurant'].includes(t))) {\n    businessName = businessName || s.name || '';\n    businessPhone = businessPhone || s.telephone || '';\n    businessDescription = businessDescription || s.description || '';\n    if (s.address) {\n      const addr = typeof s.address === 'string' ? s.address : [s.address.streetAddress, s.address.postalCode, s.address.addressLocality].filter(Boolean).join(', ');\n      businessAddress = businessAddress || addr;\n    }\n  }\n}\n\nreturn [{\n  json: {\n    schemaTypes: [...new Set(schemaTypes)],\n    detectedKnownTypes: [...new Set(detectedKnownTypes)],\n    schemaCount: schemas.length,\n    hasLocalBusiness,\n    hasFAQ,\n    hasProduct,\n    hasBreadcrumb,\n    hasOrganization,\n    hasWebSite,\n    businessName,\n    businessAddress,\n    businessPhone,\n    businessDescription,\n    schemas,\n    html\n  }\n}];"
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000011",
+      "name": "Parse Schema.org",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [740, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Meta tags, Headings, Canonical, OG tags\nconst html = $input.first().json.html || '';\n\n// Helper to extract content from meta tags\nfunction getMeta(nameOrProp, html) {\n  const patterns = [\n    new RegExp(`<meta[^>]*(?:name|property)=[\"']${nameOrProp}[\"'][^>]*content=[\"']([^\"']*)[\"']`, 'i'),\n    new RegExp(`<meta[^>]*content=[\"']([^\"']*)[\"'][^>]*(?:name|property)=[\"']${nameOrProp}[\"']`, 'i')\n  ];\n  for (const p of patterns) {\n    const m = html.match(p);\n    if (m) return m[1];\n  }\n  return '';\n}\n\n// Title\nconst titleMatch = html.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i);\nconst title = titleMatch ? titleMatch[1].trim() : '';\n\n// Meta description\nconst metaDescription = getMeta('description', html);\n\n// Canonical\nconst canonicalMatch = html.match(/<link[^>]*rel=[\"']canonical[\"'][^>]*href=[\"']([^\"']*)[\"']/i);\nconst canonical = canonicalMatch ? canonicalMatch[1] : '';\n\n// OG tags\nconst ogTitle = getMeta('og:title', html);\nconst ogDescription = getMeta('og:description', html);\nconst ogImage = getMeta('og:image', html);\nconst ogType = getMeta('og:type', html);\nconst ogUrl = getMeta('og:url', html);\nconst ogSiteName = getMeta('og:site_name', html);\n\n// Twitter card\nconst twitterCard = getMeta('twitter:card', html);\nconst twitterTitle = getMeta('twitter:title', html);\nconst twitterDescription = getMeta('twitter:description', html);\n\n// Headings\nfunction getHeadings(tag) {\n  const regex = new RegExp(`<${tag}[^>]*>([\\\\s\\\\S]*?)<\\\\/${tag}>`, 'gi');\n  const results = [];\n  let m;\n  while ((m = regex.exec(html)) !== null) {\n    results.push(m[1].replace(/<[^>]+>/g, '').trim());\n  }\n  return results;\n}\n\nconst h1 = getHeadings('h1');\nconst h2 = getHeadings('h2');\nconst h3 = getHeadings('h3');\nconst h4 = getHeadings('h4');\nconst h5 = getHeadings('h5');\nconst h6 = getHeadings('h6');\n\n// Language\nconst langMatch = html.match(/<html[^>]*lang=[\"']([^\"']*)[\"']/i);\nconst lang = langMatch ? langMatch[1] : '';\n\n// Viewport\nconst viewport = getMeta('viewport', html);\n\n// Charset\nconst charsetMatch = html.match(/<meta[^>]*charset=[\"']?([^\"'\\s>]+)/i);\nconst charset = charsetMatch ? charsetMatch[1] : '';\n\n// Hreflang\nconst hreflangRegex = /<link[^>]*hreflang=[\"']([^\"']*)[\"'][^>]*href=[\"']([^\"']*)[\"']/gi;\nconst hreflangs = [];\nlet hm;\nwhile ((hm = hreflangRegex.exec(html)) !== null) {\n  hreflangs.push({ lang: hm[1], href: hm[2] });\n}\n\nconst schemaData = { ...$input.first().json };\ndelete schemaData.html;\n\nreturn [{\n  json: {\n    ...schemaData,\n    title,\n    titleLength: title.length,\n    metaDescription,\n    metaDescriptionLength: metaDescription.length,\n    canonical,\n    og: { title: ogTitle, description: ogDescription, image: ogImage, type: ogType, url: ogUrl, siteName: ogSiteName },\n    twitter: { card: twitterCard, title: twitterTitle, description: twitterDescription },\n    headings: { h1, h2, h3, h4, h5, h6 },\n    h1Count: h1.length,\n    lang,\n    viewport,\n    charset,\n    hreflangs,\n    html\n  }\n}];"
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000012",
+      "name": "Parse Meta + Headings",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [980, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Webhook POST geo-analyse').first().json.url.replace(/\\/$/, '') }}/sitemap.xml",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000013",
+      "name": "Check sitemap.xml",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1220, 80],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Webhook POST geo-analyse').first().json.url.replace(/\\/$/, '') }}/robots.txt",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000014",
+      "name": "Check robots.txt",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1220, 240],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $('Webhook POST geo-analyse').first().json.url.replace(/\\/$/, '') }}/.well-known/llms.txt",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000015",
+      "name": "Check llms.txt",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1220, 400],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Platform detection from HTML signatures\nconst html = $('Parse Meta + Headings').first().json.html || '';\n\nlet platform = 'Custom / Unknown';\nlet platformConfidence = 'low';\nconst signals = [];\n\n// WordPress\nif (/wp-content/i.test(html) || /wp-includes/i.test(html)) {\n  platform = 'WordPress';\n  platformConfidence = 'high';\n  signals.push('wp-content/wp-includes paths found');\n} else if (/\\/wp-json\\//i.test(html) || /wordpress/i.test(html)) {\n  platform = 'WordPress';\n  platformConfidence = 'medium';\n  signals.push('WordPress references found');\n}\n\n// Shopify\nif (/cdn\\.shopify\\.com/i.test(html) || /Shopify\\.theme/i.test(html)) {\n  platform = 'Shopify';\n  platformConfidence = 'high';\n  signals.push('Shopify CDN or theme references');\n}\n\n// Wix\nif (/wix\\.com/i.test(html) || /X-Wix/i.test(html) || /wixsite\\.com/i.test(html) || /_wix_browser_sess/i.test(html)) {\n  platform = 'Wix';\n  platformConfidence = 'high';\n  signals.push('Wix platform references');\n}\n\n// Squarespace\nif (/squarespace\\.com/i.test(html) || /static1\\.squarespace\\.com/i.test(html) || /sqsp/i.test(html)) {\n  platform = 'Squarespace';\n  platformConfidence = 'high';\n  signals.push('Squarespace references');\n}\n\n// Webflow\nif (/webflow\\.com/i.test(html) || /w-webflow/i.test(html)) {\n  platform = 'Webflow';\n  platformConfidence = 'high';\n  signals.push('Webflow references');\n}\n\n// Joomla\nif (/\\/media\\/jui\\//i.test(html) || /joomla/i.test(html)) {\n  platform = 'Joomla';\n  platformConfidence = 'medium';\n  signals.push('Joomla references');\n}\n\n// Drupal\nif (/drupal\\.js/i.test(html) || /\\/sites\\/default\\/files/i.test(html)) {\n  platform = 'Drupal';\n  platformConfidence = 'medium';\n  signals.push('Drupal references');\n}\n\n// Next.js\nif (/__next/i.test(html) || /_next\\/static/i.test(html)) {\n  platform = 'Next.js';\n  platformConfidence = 'high';\n  signals.push('Next.js build artifacts found');\n}\n\nreturn [{\n  json: {\n    platform,\n    platformConfidence,\n    platformSignals: signals\n  }\n}];"
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000016",
+      "name": "Platform Detection",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1460, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combine all Branch 1 results\nconst webhookData = $('Webhook POST geo-analyse').first().json;\nconst metaData = $('Parse Meta + Headings').first().json;\nconst platformData = $('Platform Detection').first().json;\n\n// Sitemap check\nlet hasSitemap = false;\ntry {\n  const sitemapResp = $('Check sitemap.xml').first().json;\n  hasSitemap = !!(sitemapResp && (sitemapResp.data || sitemapResp.body || '').toString().includes('<?xml'));\n} catch(e) {}\n\n// robots.txt check\nlet hasRobots = false;\nlet robotsContent = '';\ntry {\n  const robotsResp = $('Check robots.txt').first().json;\n  robotsContent = (robotsResp.data || robotsResp.body || '').toString();\n  hasRobots = robotsContent.length > 10 && /user-agent/i.test(robotsContent);\n} catch(e) {}\n\n// llms.txt check\nlet hasLlmsTxt = false;\ntry {\n  const llmsResp = $('Check llms.txt').first().json;\n  const llmsBody = (llmsResp.data || llmsResp.body || '').toString();\n  hasLlmsTxt = llmsBody.length > 5;\n} catch(e) {}\n\n// Remove raw HTML from output\nconst cleanMeta = { ...metaData };\ndelete cleanMeta.html;\ndelete cleanMeta.schemas;\n\nreturn [{\n  json: {\n    branch: 'website_analyse',\n    url: webhookData.url,\n    stad: webhookData.stad,\n    branche: webhookData.branche,\n    meta: cleanMeta,\n    platform: platformData,\n    hasSitemap,\n    hasRobots,\n    hasLlmsTxt,\n    robotsContent: robotsContent.substring(0, 500)\n  }\n}];"
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000017",
+      "name": "Combine Branch 1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1700, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url={{ encodeURIComponent($json.url) }}&strategy=mobile",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000020",
+      "name": "PageSpeed Mobile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 600],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url={{ encodeURIComponent($json.url) }}&strategy=desktop",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000021",
+      "name": "PageSpeed Desktop",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 800],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract Core Web Vitals from PageSpeed responses\nconst webhookData = $('Webhook POST geo-analyse').first().json;\n\nfunction extractVitals(data, strategy) {\n  try {\n    const lh = data.lighthouseResult || {};\n    const categories = lh.categories || {};\n    const audits = lh.audits || {};\n\n    const perfScore = categories.performance ? Math.round((categories.performance.score || 0) * 100) : 0;\n\n    // LCP (Largest Contentful Paint)\n    const lcp = audits['largest-contentful-paint'] ? audits['largest-contentful-paint'].numericValue : null;\n\n    // CLS (Cumulative Layout Shift)\n    const cls = audits['cumulative-layout-shift'] ? audits['cumulative-layout-shift'].numericValue : null;\n\n    // TBT (Total Blocking Time)\n    const tbt = audits['total-blocking-time'] ? audits['total-blocking-time'].numericValue : null;\n\n    // FCP (First Contentful Paint)\n    const fcp = audits['first-contentful-paint'] ? audits['first-contentful-paint'].numericValue : null;\n\n    // Speed Index\n    const si = audits['speed-index'] ? audits['speed-index'].numericValue : null;\n\n    // TTI (Time to Interactive)\n    const tti = audits['interactive'] ? audits['interactive'].numericValue : null;\n\n    return {\n      strategy,\n      performanceScore: perfScore,\n      lcp: lcp ? Math.round(lcp) : null,\n      lcpSeconds: lcp ? (lcp / 1000).toFixed(1) : null,\n      cls: cls ? parseFloat(cls.toFixed(3)) : null,\n      tbt: tbt ? Math.round(tbt) : null,\n      fcp: fcp ? Math.round(fcp) : null,\n      si: si ? Math.round(si) : null,\n      tti: tti ? Math.round(tti) : null\n    };\n  } catch (e) {\n    return {\n      strategy,\n      performanceScore: 0,\n      lcp: null,\n      cls: null,\n      tbt: null,\n      fcp: null,\n      si: null,\n      tti: null,\n      error: e.message\n    };\n  }\n}\n\nlet mobileData = {};\ntry {\n  mobileData = $('PageSpeed Mobile').first().json;\n} catch(e) {}\n\nlet desktopData = {};\ntry {\n  desktopData = $('PageSpeed Desktop').first().json;\n} catch(e) {}\n\nconst mobile = extractVitals(mobileData, 'mobile');\nconst desktop = extractVitals(desktopData, 'desktop');\n\nreturn [{\n  json: {\n    branch: 'performance',\n    url: webhookData.url,\n    mobile,\n    desktop,\n    avgPerformanceScore: Math.round((mobile.performanceScore + desktop.performanceScore) / 2)\n  }\n}];"
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000022",
+      "name": "Extract Core Web Vitals",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 700]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate 10 search prompts per branche + stad\nconst webhookData = $('Webhook POST geo-analyse').first().json;\nconst url = webhookData.url;\nconst stad = webhookData.stad;\nconst branche = webhookData.branche;\n\n// Extract domain name for matching\nlet businessDomain = '';\ntry {\n  const u = new URL(url);\n  businessDomain = u.hostname.replace('www.', '');\n} catch(e) {}\n\nconst prompts = [\n  `Wat is de beste ${branche} in ${stad}?`,\n  `Top 5 ${branche} ${stad} aanbeveling`,\n  `Welke ${branche} raad je aan in ${stad}?`,\n  `${branche} ${stad} reviews en ervaringen`,\n  `Betrouwbare ${branche} in ${stad} vinden`,\n  `Goede ${branche} bij mij in de buurt ${stad}`,\n  `${branche} ${stad} vergelijken en kiezen`,\n  `Waar vind ik de beste ${branche} in ${stad}?`,\n  `${branche} ${stad} met de beste beoordelingen`,\n  `Aanbevolen ${branche} in de regio ${stad}`\n];\n\nconst systemPrompt = `Je bent een lokale expert assistent voor ${stad}. Geef een antwoord in JSON-formaat. Beantwoord de vraag over lokale bedrijven in de categorie \"${branche}\" in \"${stad}\". Je antwoord MOET in het volgende JSON-formaat zijn:\n{\n  \"recommendations\": [\n    {\n      \"position\": 1,\n      \"name\": \"Bedrijfsnaam\",\n      \"description\": \"Korte beschrijving waarom aanbevolen\",\n      \"url\": \"website URL indien bekend\"\n    }\n  ],\n  \"summary\": \"Korte samenvatting van je aanbevelingen\"\n}\nGeef maximaal 5 aanbevelingen per vraag. Wees specifiek over bedrijven in ${stad}.`;\n\nreturn [{\n  json: {\n    prompts,\n    systemPrompt,\n    stad,\n    branche,\n    url,\n    businessDomain\n  }\n}];"
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000030",
+      "name": "Generate Search Prompts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 1100]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare system prompt template for AI calls\nconst input = $input.first().json;\n\nreturn [{\n  json: {\n    ...input,\n    openaiMessages: input.prompts.map(p => ({\n      messages: [\n        { role: 'system', content: input.systemPrompt },\n        { role: 'user', content: p }\n      ]\n    })),\n    claudeMessages: input.prompts.map(p => ({\n      system: input.systemPrompt,\n      messages: [\n        { role: 'user', content: p }\n      ]\n    })),\n    geminiContents: input.prompts.map(p => ({\n      systemInstruction: { parts: [{ text: input.systemPrompt }] },\n      contents: [{ role: 'user', parts: [{ text: p }] }]\n    })),\n    perplexityMessages: input.prompts.map(p => ({\n      messages: [\n        { role: 'system', content: input.systemPrompt },\n        { role: 'user', content: p }\n      ]\n    }))\n  }\n}];"
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000031",
+      "name": "System Prompt Template",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [740, 1100]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.OPENAI_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o\",\n  \"messages\": [\n    {\"role\": \"system\", \"content\": {{ JSON.stringify($json.systemPrompt) }} },\n    {\"role\": \"user\", \"content\": {{ JSON.stringify($json.prompts[0]) }} }\n  ],\n  \"temperature\": 0.3,\n  \"max_tokens\": 2000,\n  \"response_format\": {\"type\": \"json_object\"}\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000032",
+      "name": "OpenAI API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 900],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-sonnet-4-20250514\",\n  \"max_tokens\": 2000,\n  \"system\": {{ JSON.stringify($json.systemPrompt) }},\n  \"messages\": [\n    {\"role\": \"user\", \"content\": {{ JSON.stringify($json.prompts[0]) }} }\n  ]\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000033",
+      "name": "Claude API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 1100],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"systemInstruction\": { \"parts\": [{\"text\": {{ JSON.stringify($json.systemPrompt) }} }] },\n  \"contents\": [\n    {\"role\": \"user\", \"parts\": [{\"text\": {{ JSON.stringify($json.prompts[0]) }} }]}\n  ],\n  \"generationConfig\": {\n    \"temperature\": 0.3,\n    \"maxOutputTokens\": 2000,\n    \"responseMimeType\": \"application/json\"\n  }\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000034",
+      "name": "Gemini API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 1300],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "amount": 4,
+        "unit": "seconds"
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000035",
+      "name": "Wait Gemini Rate Limit",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [1240, 1300],
+      "webhookId": "gemini-wait"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.perplexity.ai/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.PERPLEXITY_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"sonar\",\n  \"messages\": [\n    {\"role\": \"system\", \"content\": {{ JSON.stringify($json.systemPrompt) }} },\n    {\"role\": \"user\", \"content\": {{ JSON.stringify($json.prompts[0]) }} }\n  ],\n  \"temperature\": 0.3,\n  \"max_tokens\": 2000\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000036",
+      "name": "Perplexity API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 1500],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse all AI JSON responses and do fuzzy matching for business name\nconst promptData = $('System Prompt Template').first().json;\nconst businessDomain = promptData.businessDomain || '';\nconst url = promptData.url || '';\n\n// Extract business name from domain (simple heuristic)\nlet businessName = businessDomain.split('.')[0] || '';\n\n// Fuzzy match function: checks if name appears in text (case-insensitive, partial match)\nfunction fuzzyMatch(text, name, domain) {\n  if (!text) return false;\n  const lower = text.toLowerCase();\n  const nameLower = name.toLowerCase();\n  const domainLower = domain.toLowerCase();\n\n  // Direct domain match\n  if (domainLower && lower.includes(domainLower)) return true;\n\n  // Name match (at least 3 chars)\n  if (nameLower.length >= 3 && lower.includes(nameLower)) return true;\n\n  // Levenshtein-like partial match: check if any word in text is close to name\n  const words = lower.split(/\\s+/);\n  for (const word of words) {\n    if (word.length >= 3 && nameLower.length >= 3) {\n      // Simple containment check\n      if (word.includes(nameLower) || nameLower.includes(word)) return true;\n    }\n  }\n\n  return false;\n}\n\nfunction parseAIResponse(nodeName, platform) {\n  try {\n    const data = $(nodeName).first().json;\n    let text = '';\n    let parsed = null;\n\n    if (platform === 'openai') {\n      text = data.choices?.[0]?.message?.content || '';\n    } else if (platform === 'claude') {\n      text = data.content?.[0]?.text || '';\n    } else if (platform === 'gemini') {\n      text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';\n    } else if (platform === 'perplexity') {\n      text = data.choices?.[0]?.message?.content || '';\n    }\n\n    // Try to parse JSON from text\n    try {\n      // Remove markdown code blocks if present\n      let cleanText = text.replace(/```json\\n?/g, '').replace(/```\\n?/g, '').trim();\n      parsed = JSON.parse(cleanText);\n    } catch(e) {\n      // Try to extract JSON from text\n      const jsonMatch = text.match(/\\{[\\s\\S]*\\}/);\n      if (jsonMatch) {\n        try {\n          parsed = JSON.parse(jsonMatch[0]);\n        } catch(e2) {}\n      }\n    }\n\n    const recommendations = parsed?.recommendations || [];\n    let mentioned = false;\n    let position = -1;\n\n    for (let i = 0; i < recommendations.length; i++) {\n      const rec = recommendations[i];\n      const recText = [rec.name, rec.url, rec.description].join(' ');\n      if (fuzzyMatch(recText, businessName, businessDomain)) {\n        mentioned = true;\n        position = rec.position || (i + 1);\n        break;\n      }\n    }\n\n    // Also check raw text for mentions\n    if (!mentioned) {\n      mentioned = fuzzyMatch(text, businessName, businessDomain);\n      if (mentioned) position = 0; // mentioned but not in a ranked position\n    }\n\n    const competitors = recommendations\n      .filter(r => !fuzzyMatch([r.name, r.url, r.description].join(' '), businessName, businessDomain))\n      .map(r => ({ name: r.name, url: r.url || '' }));\n\n    return {\n      platform,\n      mentioned,\n      position,\n      totalRecommendations: recommendations.length,\n      competitors: competitors.slice(0, 5),\n      rawResponseLength: text.length,\n      success: true\n    };\n  } catch(e) {\n    return {\n      platform,\n      mentioned: false,\n      position: -1,\n      totalRecommendations: 0,\n      competitors: [],\n      rawResponseLength: 0,\n      success: false,\n      error: e.message\n    };\n  }\n}\n\nconst openai = parseAIResponse('OpenAI API', 'openai');\nconst claude = parseAIResponse('Claude API', 'claude');\nconst gemini = parseAIResponse('Wait Gemini Rate Limit', 'gemini');\nconst perplexity = parseAIResponse('Perplexity API', 'perplexity');\n\nreturn [{\n  json: {\n    openai,\n    claude,\n    gemini,\n    perplexity,\n    businessName,\n    businessDomain\n  }\n}];"
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000037",
+      "name": "Parse AI Responses",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1480, 1100]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calculate citation_rate, avg_position, competitors per platform\nconst data = $input.first().json;\nconst platforms = ['openai', 'claude', 'gemini', 'perplexity'];\n\nlet totalMentioned = 0;\nlet totalPlatforms = 0;\nlet positionSum = 0;\nlet positionCount = 0;\nlet allCompetitors = [];\n\nconst platformResults = {};\n\nfor (const p of platforms) {\n  const result = data[p];\n  if (result.success) {\n    totalPlatforms++;\n    if (result.mentioned) {\n      totalMentioned++;\n      if (result.position > 0) {\n        positionSum += result.position;\n        positionCount++;\n      }\n    }\n    for (const c of result.competitors) {\n      allCompetitors.push(c.name);\n    }\n    platformResults[p] = {\n      mentioned: result.mentioned,\n      position: result.position,\n      competitors: result.competitors\n    };\n  } else {\n    platformResults[p] = { mentioned: false, position: -1, competitors: [], error: result.error };\n  }\n}\n\nconst citationRate = totalPlatforms > 0 ? totalMentioned / totalPlatforms : 0;\nconst avgPosition = positionCount > 0 ? positionSum / positionCount : 0;\n\n// Count competitor frequency\nconst competitorCounts = {};\nfor (const name of allCompetitors) {\n  const key = name.toLowerCase().trim();\n  competitorCounts[key] = (competitorCounts[key] || 0) + 1;\n}\nconst topCompetitors = Object.entries(competitorCounts)\n  .sort((a, b) => b[1] - a[1])\n  .slice(0, 5)\n  .map(([name, count]) => ({ name, mentionedBy: count }));\n\nreturn [{\n  json: {\n    branch: 'ai_citations',\n    citationRate: parseFloat(citationRate.toFixed(2)),\n    avgPosition: parseFloat(avgPosition.toFixed(1)),\n    platformsMentioned: totalMentioned,\n    platformsChecked: totalPlatforms,\n    platformResults,\n    topCompetitors,\n    businessName: data.businessName,\n    businessDomain: data.businessDomain\n  }\n}];"
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000038",
+      "name": "Calculate Citation Stats",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1700, 1100]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000040",
+      "name": "Merge All Branches",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2,
+      "position": [2000, 600],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Calculate GEO Score using weighted model\n// Citations: 40%, Technical: 30%, Content: 20%, Performance: 10%\n\nconst items = $input.all();\n\n// Gather data from all branches\nlet websiteData = {};\nlet performanceData = {};\nlet citationData = {};\n\nfor (const item of items) {\n  const d = item.json;\n  if (d.branch === 'website_analyse') websiteData = d;\n  else if (d.branch === 'performance') performanceData = d;\n  else if (d.branch === 'ai_citations') citationData = d;\n  // Also check nested structures from merge\n  if (d.meta) websiteData = d;\n  if (d.mobile) performanceData = d;\n  if (d.citationRate !== undefined) citationData = d;\n}\n\n// ========== CITATION SCORE (40%) ==========\nlet citationScore = 0;\n{\n  const rate = citationData.citationRate || 0;\n  const avgPos = citationData.avgPosition || 0;\n  const platformsMentioned = citationData.platformsMentioned || 0;\n\n  // Citation rate: 0-1 mapped to 0-50 points\n  let rateScore = rate * 50;\n\n  // Position score: position 1 = 30pts, 2 = 25, 3 = 20, 4 = 15, 5 = 10, 0 or >5 = 5\n  let posScore = 0;\n  if (avgPos === 1) posScore = 30;\n  else if (avgPos <= 2) posScore = 25;\n  else if (avgPos <= 3) posScore = 20;\n  else if (avgPos <= 4) posScore = 15;\n  else if (avgPos <= 5) posScore = 10;\n  else if (avgPos > 0) posScore = 5;\n\n  // Platform diversity: bonus for being on multiple platforms\n  let diversityBonus = platformsMentioned * 5; // max 20\n\n  citationScore = Math.min(100, rateScore + posScore + diversityBonus);\n}\n\n// ========== TECHNICAL SCORE (30%) ==========\nlet technicalScore = 0;\n{\n  const meta = websiteData.meta || {};\n  let points = 0;\n\n  // Schema.org (max 25 pts)\n  if (meta.hasLocalBusiness) points += 15;\n  else if (meta.hasOrganization) points += 8;\n  if (meta.hasFAQ) points += 5;\n  if (meta.hasBreadcrumb) points += 3;\n  if (meta.hasWebSite) points += 2;\n\n  // Meta tags (max 20 pts)\n  if (meta.title && meta.titleLength > 10 && meta.titleLength <= 60) points += 8;\n  else if (meta.title) points += 4;\n  if (meta.metaDescription && meta.metaDescriptionLength > 50 && meta.metaDescriptionLength <= 160) points += 8;\n  else if (meta.metaDescription) points += 4;\n  if (meta.canonical) points += 4;\n\n  // Headings (max 15 pts)\n  if (meta.h1Count === 1) points += 10;\n  else if (meta.h1Count > 0) points += 5;\n  const h2Count = meta.headings?.h2?.length || 0;\n  if (h2Count >= 2) points += 5;\n\n  // OG tags (max 10 pts)\n  if (meta.og?.title) points += 3;\n  if (meta.og?.description) points += 3;\n  if (meta.og?.image) points += 4;\n\n  // Technical files (max 15 pts)\n  if (websiteData.hasSitemap) points += 5;\n  if (websiteData.hasRobots) points += 5;\n  if (websiteData.hasLlmsTxt) points += 5;\n\n  // Language (max 5 pts)\n  if (meta.lang) points += 3;\n  if (meta.viewport) points += 2;\n\n  // Hreflang (max 5 pts)\n  if (meta.hreflangs && meta.hreflangs.length > 0) points += 5;\n\n  // Schema count bonus (max 5 pts)\n  if ((meta.schemaCount || 0) >= 3) points += 5;\n  else if ((meta.schemaCount || 0) >= 1) points += 2;\n\n  technicalScore = Math.min(100, points);\n}\n\n// ========== CONTENT SCORE (20%) ==========\nlet contentScore = 0;\n{\n  const meta = websiteData.meta || {};\n  let points = 0;\n\n  // Title quality\n  if (meta.title) {\n    const stad = websiteData.stad || '';\n    const branche = websiteData.branche || '';\n    if (stad && meta.title.toLowerCase().includes(stad.toLowerCase())) points += 10;\n    if (branche && meta.title.toLowerCase().includes(branche.toLowerCase())) points += 10;\n    if (meta.titleLength >= 30 && meta.titleLength <= 60) points += 5;\n  }\n\n  // Meta description quality\n  if (meta.metaDescription) {\n    const stad = websiteData.stad || '';\n    const branche = websiteData.branche || '';\n    if (stad && meta.metaDescription.toLowerCase().includes(stad.toLowerCase())) points += 10;\n    if (branche && meta.metaDescription.toLowerCase().includes(branche.toLowerCase())) points += 10;\n    if (meta.metaDescriptionLength >= 120 && meta.metaDescriptionLength <= 160) points += 5;\n  }\n\n  // H1 quality\n  const h1List = meta.headings?.h1 || [];\n  if (h1List.length === 1) {\n    points += 10;\n    const h1Text = h1List[0].toLowerCase();\n    const stad = (websiteData.stad || '').toLowerCase();\n    const branche = (websiteData.branche || '').toLowerCase();\n    if (stad && h1Text.includes(stad)) points += 5;\n    if (branche && h1Text.includes(branche)) points += 5;\n  }\n\n  // Heading structure depth\n  const h2Count = meta.headings?.h2?.length || 0;\n  const h3Count = meta.headings?.h3?.length || 0;\n  if (h2Count >= 3) points += 10;\n  else if (h2Count >= 1) points += 5;\n  if (h3Count >= 2) points += 5;\n\n  // FAQ schema = good content signal\n  if (meta.hasFAQ) points += 15;\n\n  contentScore = Math.min(100, points);\n}\n\n// ========== PERFORMANCE SCORE (10%) ==========\nlet performanceScore = 0;\n{\n  const mobile = performanceData.mobile || {};\n  const desktop = performanceData.desktop || {};\n\n  // Use Google's own performance score (0-100)\n  const mobilePerf = mobile.performanceScore || 0;\n  const desktopPerf = desktop.performanceScore || 0;\n\n  // Weight mobile more heavily (70/30)\n  performanceScore = Math.round(mobilePerf * 0.7 + desktopPerf * 0.3);\n}\n\n// ========== FINAL GEO SCORE ==========\nconst geoScore = Math.round(\n  citationScore * 0.40 +\n  technicalScore * 0.30 +\n  contentScore * 0.20 +\n  performanceScore * 0.10\n);\n\n// Determine grade\nlet grade = 'F';\nif (geoScore >= 90) grade = 'A+';\nelse if (geoScore >= 80) grade = 'A';\nelse if (geoScore >= 70) grade = 'B';\nelse if (geoScore >= 60) grade = 'C';\nelse if (geoScore >= 50) grade = 'D';\nelse if (geoScore >= 40) grade = 'E';\nelse grade = 'F';\n\nreturn [{\n  json: {\n    geoScore,\n    grade,\n    breakdown: {\n      citations: { score: Math.round(citationScore), weight: '40%', weighted: Math.round(citationScore * 0.40) },\n      technical: { score: Math.round(technicalScore), weight: '30%', weighted: Math.round(technicalScore * 0.30) },\n      content: { score: Math.round(contentScore), weight: '20%', weighted: Math.round(contentScore * 0.20) },\n      performance: { score: Math.round(performanceScore), weight: '10%', weighted: Math.round(performanceScore * 0.10) }\n    },\n    websiteData,\n    performanceData,\n    citationData\n  }\n}];"
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000041",
+      "name": "Calculate GEO Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2260, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate teaser report data (score + top 3 problems)\nconst data = $input.first().json;\nconst breakdown = data.breakdown || {};\nconst websiteData = data.websiteData || {};\nconst performanceData = data.performanceData || {};\nconst citationData = data.citationData || {};\nconst meta = websiteData.meta || {};\n\nconst problems = [];\n\n// Check citation problems\nif ((citationData.citationRate || 0) === 0) {\n  problems.push({\n    severity: 'critical',\n    category: 'AI Zichtbaarheid',\n    message: 'Uw bedrijf wordt door geen enkele AI-assistent aanbevolen. U bent onzichtbaar voor AI-zoekopdrachten.',\n    impact: 'Potentieel 40% van uw GEO score'\n  });\n} else if ((citationData.citationRate || 0) < 0.5) {\n  problems.push({\n    severity: 'high',\n    category: 'AI Zichtbaarheid',\n    message: `Uw bedrijf wordt slechts door ${citationData.platformsMentioned} van ${citationData.platformsChecked} AI-platforms genoemd.`,\n    impact: 'Mist bereik op meerdere AI-platforms'\n  });\n}\n\n// Check technical problems\nif (!meta.hasLocalBusiness && !meta.hasOrganization) {\n  problems.push({\n    severity: 'critical',\n    category: 'Structured Data',\n    message: 'Geen Schema.org Organisation of LocalBusiness markup gevonden. AI-systemen kunnen uw bedrijf moeilijk identificeren.',\n    impact: 'Essentieel voor AI-herkenning'\n  });\n}\n\nif (!websiteData.hasLlmsTxt) {\n  problems.push({\n    severity: 'high',\n    category: 'AI Toegankelijkheid',\n    message: 'Geen llms.txt bestand gevonden. Dit bestand helpt AI-crawlers uw site beter te begrijpen.',\n    impact: 'Verbetert AI-indexering'\n  });\n}\n\nif (!meta.hasFAQ) {\n  problems.push({\n    severity: 'medium',\n    category: 'Content Structuur',\n    message: 'Geen FAQ Schema markup gevonden. FAQ-content wordt vaak door AI-assistenten gebruikt in antwoorden.',\n    impact: 'Verhoogt kans op AI-citaties'\n  });\n}\n\nif (!websiteData.hasSitemap) {\n  problems.push({\n    severity: 'high',\n    category: 'Technisch SEO',\n    message: 'Geen sitemap.xml gevonden. Dit belemmert zoekmachines en AI-crawlers bij het indexeren.',\n    impact: 'Basis SEO-vereiste'\n  });\n}\n\nif (!meta.canonical) {\n  problems.push({\n    severity: 'medium',\n    category: 'Technisch SEO',\n    message: 'Geen canonical URL ingesteld. Dit kan duplicate content issues veroorzaken.',\n    impact: 'Voorkomt verwarring bij zoekmachines'\n  });\n}\n\nif (meta.h1Count !== 1) {\n  problems.push({\n    severity: 'medium',\n    category: 'Content Structuur',\n    message: meta.h1Count === 0 ? 'Geen H1 heading gevonden op de pagina.' : `${meta.h1Count} H1 headings gevonden (optimaal is 1).`,\n    impact: 'Heading structuur belangrijk voor AI-begrip'\n  });\n}\n\nconst mobilePerf = performanceData.mobile?.performanceScore || 0;\nif (mobilePerf < 50) {\n  problems.push({\n    severity: 'high',\n    category: 'Performance',\n    message: `Mobiele performance score is ${mobilePerf}/100. Dit beïnvloedt gebruikerservaring en rankings.`,\n    impact: 'Google gebruikt mobile-first indexering'\n  });\n}\n\nif (!meta.og?.image) {\n  problems.push({\n    severity: 'low',\n    category: 'Social & Sharing',\n    message: 'Geen Open Graph afbeelding ingesteld. Gedeelde links tonen geen preview afbeelding.',\n    impact: 'Vermindert click-through bij social shares'\n  });\n}\n\n// Sort by severity and take top 3\nconst severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };\nproblems.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);\nconst top3 = problems.slice(0, 3);\n\nreturn [{\n  json: {\n    success: true,\n    geoScore: data.geoScore,\n    grade: data.grade,\n    breakdown: {\n      citations: { score: breakdown.citations?.score || 0, weight: '40%' },\n      technical: { score: breakdown.technical?.score || 0, weight: '30%' },\n      content: { score: breakdown.content?.score || 0, weight: '20%' },\n      performance: { score: breakdown.performance?.score || 0, weight: '10%' }\n    },\n    topProblems: top3,\n    totalProblemsFound: problems.length,\n    platform: websiteData.platform || {},\n    citationSummary: {\n      citationRate: citationData.citationRate || 0,\n      platformsMentioned: citationData.platformsMentioned || 0,\n      platformsChecked: citationData.platformsChecked || 0,\n      topCompetitors: (citationData.topCompetitors || []).slice(0, 3)\n    },\n    performanceSummary: {\n      mobileScore: performanceData.mobile?.performanceScore || 0,\n      desktopScore: performanceData.desktop?.performanceScore || 0\n    },\n    teaser: true,\n    message: `Uw GEO Score is ${data.geoScore}/100 (${data.grade}). We hebben ${problems.length} verbeterpunten gevonden. Vraag het volledige rapport aan voor gedetailleerde aanbevelingen.`\n  }\n}];"
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000042",
+      "name": "Generate Teaser Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2520, 600]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000043",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2780, 600]
+    },
+    {
+      "parameters": {},
+      "id": "a1b2c3d4-0001-4000-8000-000000000050",
+      "name": "NoOp Branch 2 Anchor",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1060, 700]
+    },
+    {
+      "parameters": {},
+      "id": "a1b2c3d4-0001-4000-8000-000000000060",
+      "name": "NoOp Gemini Done",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1480, 1300]
+    }
+  ],
+  "connections": {
+    "Webhook POST geo-analyse": {
+      "main": [
+        [
+          {
+            "node": "HTTP GET Website",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "PageSpeed Mobile",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "PageSpeed Desktop",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Generate Search Prompts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP GET Website": {
+      "main": [
+        [
+          {
+            "node": "Parse Schema.org",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Schema.org": {
+      "main": [
+        [
+          {
+            "node": "Parse Meta + Headings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Meta + Headings": {
+      "main": [
+        [
+          {
+            "node": "Check sitemap.xml",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check robots.txt",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check llms.txt",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Platform Detection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check sitemap.xml": {
+      "main": [
+        [
+          {
+            "node": "Combine Branch 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check robots.txt": {
+      "main": [
+        [
+          {
+            "node": "Combine Branch 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check llms.txt": {
+      "main": [
+        [
+          {
+            "node": "Combine Branch 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Platform Detection": {
+      "main": [
+        [
+          {
+            "node": "Combine Branch 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Branch 1": {
+      "main": [
+        [
+          {
+            "node": "Merge All Branches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PageSpeed Mobile": {
+      "main": [
+        [
+          {
+            "node": "NoOp Branch 2 Anchor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PageSpeed Desktop": {
+      "main": [
+        [
+          {
+            "node": "NoOp Branch 2 Anchor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "NoOp Branch 2 Anchor": {
+      "main": [
+        [
+          {
+            "node": "Extract Core Web Vitals",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Core Web Vitals": {
+      "main": [
+        [
+          {
+            "node": "Merge All Branches",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Generate Search Prompts": {
+      "main": [
+        [
+          {
+            "node": "System Prompt Template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "System Prompt Template": {
+      "main": [
+        [
+          {
+            "node": "OpenAI API",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Claude API",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Gemini API",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Perplexity API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI API": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Responses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude API": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Responses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini API": {
+      "main": [
+        [
+          {
+            "node": "Wait Gemini Rate Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Gemini Rate Limit": {
+      "main": [
+        [
+          {
+            "node": "NoOp Gemini Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "NoOp Gemini Done": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Responses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Perplexity API": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Responses",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Responses": {
+      "main": [
+        [
+          {
+            "node": "Calculate Citation Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Citation Stats": {
+      "main": [
+        [
+          {
+            "node": "Merge All Branches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge All Branches": {
+      "main": [
+        [
+          {
+            "node": "Calculate GEO Score",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate GEO Score": {
+      "main": [
+        [
+          {
+            "node": "Generate Teaser Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Teaser Report": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "geo-lead-engine-v1"
+  },
+  "tags": []
+}

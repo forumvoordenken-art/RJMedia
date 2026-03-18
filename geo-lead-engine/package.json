@@ -1,0 +1,17 @@
+{
+  "name": "geo-lead-engine",
+  "version": "1.0.0",
+  "description": "RJ Media GEO Lead Engine — Backend scoring engine, parsers, and n8n workflow for AI-zoekmachine vindbaarheid analyse",
+  "main": "src/scoring/calculator.js",
+  "scripts": {
+    "test": "jest --verbose",
+    "test:coverage": "jest --coverage"
+  },
+  "keywords": ["geo", "seo", "ai-citations", "lead-generation"],
+  "author": "RJ Media",
+  "license": "UNLICENSED",
+  "private": true,
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}

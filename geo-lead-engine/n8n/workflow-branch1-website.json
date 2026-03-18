@@ -1,0 +1,85 @@
+{
+  "name": "GEO Lead Engine — Branch 1: Website Analyse",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "geo-branch1-test",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "b1-webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "timeout": 10000,
+          "redirect": { "redirect": { "followRedirects": true } }
+        }
+      },
+      "id": "b1-fetch",
+      "name": "Fetch Website",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [470, 300],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const html = $input.first().json.data || $input.first().json.body || '';\n\n// Parse Schema.org JSON-LD\nconst scripts = [];\nconst regex = /<script[^>]*type\\s*=\\s*[\"']application\\/ld\\+json[\"'][^>]*>([\\s\\S]*?)<\\/script>/gi;\nlet match;\nwhile ((match = regex.exec(html)) !== null) {\n  try {\n    scripts.push(JSON.parse(match[1].trim()));\n  } catch (e) { }\n}\n\nconst knownTypes = ['Organization','LocalBusiness','Restaurant','FAQ','FAQPage','Product','BreadcrumbList','WebSite'];\nconst found = new Set();\n\nfunction extractTypes(obj) {\n  if (!obj || typeof obj !== 'object') return;\n  if (Array.isArray(obj)) { obj.forEach(extractTypes); return; }\n  const type = obj['@type'];\n  if (type) {\n    const types = Array.isArray(type) ? type : [type];\n    types.forEach(t => { if (knownTypes.includes(t)) found.add(t); });\n  }\n  if (obj['@graph']) obj['@graph'].forEach(extractTypes);\n}\nscripts.forEach(extractTypes);\n\nconst foundArr = Array.from(found);\nconst missing = knownTypes.filter(t => !found.has(t));\n\nreturn [{ json: { schema: { found: foundArr, missing, has_faq_schema: found.has('FAQ') || found.has('FAQPage') }, html } }];"
+      },
+      "id": "b1-schema",
+      "name": "Parse Schema.org",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const html = $input.first().json.html || '';\nconst branche = $('Webhook').first().json.body.branche || '';\nconst stad = $('Webhook').first().json.body.stad || '';\n\nconst titleMatch = html.match(/<title[^>]*>([\\s\\S]*?)<\\/title>/i);\nconst title = titleMatch ? titleMatch[1].trim() : '';\n\nconst metaMatch = html.match(/<meta[^>]*name\\s*=\\s*[\"']description[\"'][^>]*content\\s*=\\s*[\"']([\\s\\S]*?)[\"'][^>]*\\/?>/i)\n  || html.match(/<meta[^>]*content\\s*=\\s*[\"']([\\s\\S]*?)[\"'][^>]*name\\s*=\\s*[\"']description[\"'][^>]*\\/?>/i);\nconst meta_description = metaMatch ? metaMatch[1].trim() : '';\n\nconst headings = [];\nconst hRegex = /<(h[1-6])[^>]*>([\\s\\S]*?)<\\/\\1>/gi;\nlet hMatch;\nwhile ((hMatch = hRegex.exec(html)) !== null) {\n  headings.push({ level: parseInt(hMatch[1][1]), text: hMatch[2].replace(/<[^>]*>/g, '').trim() });\n}\nconst h1 = headings.find(h => h.level === 1);\nconst h1Text = h1 ? h1.text : '';\nconst h1Lower = h1Text.toLowerCase();\n\nreturn [{ json: {\n  ...$input.first().json,\n  meta: {\n    title, meta_description, meta_length: meta_description.length,\n    h1: h1Text,\n    h1_contains_location: h1Lower.includes(branche.toLowerCase()) || h1Lower.includes(stad.toLowerCase()),\n    headings_hierarchy: headings.length > 0 && headings[0].level === 1,\n    has_canonical: /<link[^>]*rel\\s*=\\s*[\"']canonical[\"']/i.test(html),\n    has_og_tags: /<meta[^>]*property\\s*=\\s*[\"']og:/i.test(html)\n  }\n} }];"
+      },
+      "id": "b1-meta",
+      "name": "Parse Meta + Headings",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [910, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const html = $input.first().json.html || '';\nconst platforms = [\n  { name: 'wordpress', sigs: [/wp-content\\//i, /wp-includes\\//i] },\n  { name: 'shopify', sigs: [/cdn\\.shopify\\.com/i, /Shopify\\.theme/i] },\n  { name: 'wix', sigs: [/static\\.wixstatic\\.com/i, /_wix_browser_sess/i] },\n  { name: 'squarespace', sigs: [/squarespace-cdn/i, /sqsp\\./i] }\n];\nlet platform = 'custom', confidence = 'low';\nfor (const p of platforms) {\n  const matches = p.sigs.filter(s => s.test(html)).length;\n  if (matches > 0) { platform = p.name; confidence = matches >= 2 ? 'high' : 'medium'; break; }\n}\n\nconst { schema, meta } = $input.first().json;\nreturn [{ json: { schema, meta, platform: { platform, confidence } } }];"
+      },
+      "id": "b1-platform",
+      "name": "Detect Platform",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1130, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}"
+      },
+      "id": "b1-respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1350, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Fetch Website", "type": "main", "index": 0 }]] },
+    "Fetch Website": { "main": [[{ "node": "Parse Schema.org", "type": "main", "index": 0 }]] },
+    "Parse Schema.org": { "main": [[{ "node": "Parse Meta + Headings", "type": "main", "index": 0 }]] },
+    "Parse Meta + Headings": { "main": [[{ "node": "Detect Platform", "type": "main", "index": 0 }]] },
+    "Detect Platform": { "main": [[{ "node": "Respond", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "branch1-v1",
+  "meta": { "instanceId": "geo-lead-engine" }
+}

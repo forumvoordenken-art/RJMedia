@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="nl" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>GEO Rapport - {{bedrijfsnaam}}</title>
+  <!--[if mso]>
+  <noscript>
+    <xml>
+      <o:OfficeDocumentSettings>
+        <o:PixelsPerInch>96</o:PixelsPerInch>
+      </o:OfficeDocumentSettings>
+    </xml>
+  </noscript>
+  <![endif]-->
+</head>
+<body style="margin:0;padding:0;background-color:#FFFCF9;font-family:system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;">
+
+  <!-- Outer wrapper -->
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#FFFCF9;">
+    <tr>
+      <td align="center" style="padding:24px 16px;">
+
+        <!-- Main container -->
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="680" style="max-width:680px;width:100%;">
+
+          <!-- ============================================
+               SECTION 1: HEADER
+               ============================================ -->
+          <tr>
+            <td style="padding:0 0 8px 0;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td style="padding:24px 32px;text-align:left;">
+                    <span style="font-size:28px;font-weight:800;color:#D97757;letter-spacing:-0.5px;">RJ Media</span>
+                  </td>
+                  <td style="padding:24px 32px;text-align:right;color:#9B8E82;font-size:14px;">
+                    {{datum}}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Tagline -->
+          <tr>
+            <td style="padding:0 32px 24px 32px;">
+              <p style="margin:0;font-size:22px;font-weight:700;color:#2C2420;line-height:1.3;">
+                GEO Lead Engine Rapport
+              </p>
+              <p style="margin:6px 0 0 0;font-size:15px;color:#7A6E64;line-height:1.5;">
+                Hoe zichtbaar is uw bedrijf voor AI-zoekmachines?
+              </p>
+            </td>
+          </tr>
+
+          <!-- ============================================
+               SECTION 2: CLIENT INFO CARD
+               ============================================ -->
+          <tr>
+            <td style="padding:0 0 16px 0;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#ffffff;border:1px solid #E8E2DC;border-radius:12px;">
+                <tr>
+                  <td style="padding:24px 32px;">
+                    <p style="margin:0 0 4px 0;font-size:20px;font-weight:700;color:#2C2420;">
+                      {{bedrijfsnaam}}
+                    </p>
+                    <p style="margin:0 0 16px 0;">
+                      <a href="{{url}}" style="font-size:14px;color:#D97757;text-decoration:none;">{{url}}</a>
+                    </p>
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td style="padding-right:8px;">
+                          <span style="display:inline-block;padding:4px 14px;background-color:#FDF0EB;color:#D97757;font-size:12px;font-weight:600;border-radius:20px;letter-spacing:0.3px;">
+                            {{platform}}
+                          </span>
+                        </td>
+                        <td>
+                          <span style="display:inline-block;padding:4px 14px;background-color:#F3F0ED;color:#6B5E54;font-size:12px;font-weight:600;border-radius:20px;letter-spacing:0.3px;">
+                            {{branche}}
+                          </span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- ============================================
+               SECTION 3: GEO SCORE RING
+               ============================================ -->
+          <tr>
+            <td style="padding:0 0 16px 0;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#ffffff;border:1px solid #E8E2DC;border-radius:12px;">
+                <tr>
+                  <td align="center" style="padding:40px 32px 16px 32px;">
+                    <p style="margin:0 0 24px 0;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;color:#9B8E82;">
+                      Uw GEO Score
+                    </p>
+                    <!--
+                      SVG Score Ring
+                      - Circle radius=70, circumference=2*pi*70=439.82
+                      - stroke-dasharray: first value = (score/100)*439.82, second = 439.82
+                      - Server replaces {{geo_score}} with the numeric value
+                      - Server replaces {{geo_score_dash}} with calculated (score/100)*439.82
+                    -->
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td align="center">
+                          <svg width="180" height="180" viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+                            <!-- Background ring -->
+                            <circle cx="90" cy="90" r="70" fill="none" stroke="#F3F0ED" stroke-width="12" />
+                            <!-- Score ring -->
+                            <circle cx="90" cy="90" r="70" fill="none" stroke="#D97757" stroke-width="12"
+                                    stroke-linecap="round"
+                                    stroke-dasharray="{{geo_score_dash}} 439.82"
+                                    transform="rotate(-90 90 90)" />
+                            <!-- Score text -->
+                            <text x="90" y="82" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="44" font-weight="800" fill="#2C2420">{{geo_score}}</text>
+                            <text x="90" y="106" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="14" fill="#9B8E82">van 100</text>
+                          </svg>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- ============================================
+                     SECTION 4: SCORE EXPLANATION
+                     ============================================ -->
+                <tr>
+                  <td style="padding:8px 32px 32px 32px;">
+                    <p style="margin:0;font-size:15px;color:#5C5149;line-height:1.6;text-align:center;">
+                      Deze score geeft aan hoe goed <strong style="color:#2C2420;">{{bedrijfsnaam}}</strong>
+                      vindbaar en citeerbaar is voor AI-gestuurde zoekmachines zoals ChatGPT, Perplexity en
+                      Google AI Overviews. Een hogere score betekent meer kans op vermelding in AI-antwoorden.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- ============================================
+               SECTION 5: CATEGORY SCORES
+               ============================================ -->
+          <tr>
+            <td style="padding:0 0 16px 0;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#ffffff;border:1px solid #E8E2DC;border-radius:12px;">
+                <tr>
+                  <td style="padding:28px 32px 8px 32px;">
+                    <p style="margin:0;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;color:#9B8E82;">
+                      Categorieoverzicht
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- AI Citations -->
+                <tr>
+                  <td style="padding:16px 32px 0 32px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                      <tr>
+                        <td style="font-size:14px;font-weight:600;color:#2C2420;padding-bottom:6px;">
+                          AI Citations
+                        </td>
+                        <td style="font-size:14px;font-weight:700;color:#D97757;text-align:right;padding-bottom:6px;">
+                          {{citations_score}}<span style="font-weight:400;color:#9B8E82;font-size:12px;">/100</span>
+                        </td>
+                      </tr>
+                    </table>
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                      <tr>
+                        <td style="padding:0;">
+                          <div style="background-color:#F3F0ED;border-radius:6px;height:8px;width:100%;">
+                            <!--[if mso]>
+                            <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" style="height:8px;width:{{citations_score}}%;" arcsize="50%" fillcolor="#D97757" stroke="f"></v:roundrect>
+                            <![endif]-->
+                            <!--[if !mso]><!-->
+                            <div style="background-color:#D97757;border-radius:6px;height:8px;width:{{citations_score}}%;max-width:100%;"></div>
+                            <!--<![endif]-->
+                          </div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- Technisch -->
+                <tr>
+                  <td style="padding:16px 32px 0 32px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                      <tr>
+                        <td style="font-size:14px;font-weight:600;color:#2C2420;padding-bottom:6px;">
+                          Technisch
+                        </td>
+                        <td style="font-size:14px;font-weight:700;color:#D97757;text-align:right;padding-bottom:6px;">
+                          {{technical_score}}<span style="font-weight:400;color:#9B8E82;font-size:12px;">/100</span>
+                        </td>
+                      </tr>
+                    </table>
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                      <tr>
+                        <td style="padding:0;">
+                          <div style="background-color:#F3F0ED;border-radius:6px;height:8px;width:100%;">
+                            <div style="background-color:#D97757;border-radius:6px;height:8px;width:{{technical_score}}%;max-width:100%;"></div>
+                          </div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- Content -->
+                <tr>
+                  <td style="padding:16px 32px 0 32px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                      <tr>
+                        <td style="font-size:14px;font-weight:600;color:#2C2420;padding-bottom:6px;">
+                          Content
+                        </td>
+                        <td style="font-size:14px;font-weight:700;color:#D97757;text-align:right;padding-bottom:6px;">
+                          {{content_score}}<span style="font-weight:400;color:#9B8E82;font-size:12px;">/100</span>
+                        </td>
+                      </tr>
+                    </table>
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                      <tr>
+                        <td style="padding:0;">
+                          <div style="background-color:#F3F0ED;border-radius:6px;height:8px;width:100%;">
+                            <div style="background-color:#D97757;border-radius:6px;height:8px;width:{{content_score}}%;max-width:100%;"></div>
+                          </div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- Performance -->
+                <tr>
+                  <td style="padding:16px 32px 28px 32px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                      <tr>
+                        <td style="font-size:14px;font-weight:600;color:#2C2420;padding-bottom:6px;">
+                          Performance
+                        </td>
+                        <td style="font-size:14px;font-weight:700;color:#D97757;text-align:right;padding-bottom:6px;">
+                          {{performance_score}}<span style="font-weight:400;color:#9B8E82;font-size:12px;">/100</span>
+                        </td>
+                      </tr>
+                    </table>
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                      <tr>
+                        <td style="padding:0;">
+                          <div style="background-color:#F3F0ED;border-radius:6px;height:8px;width:100%;">
+                            <div style="background-color:#D97757;border-radius:6px;height:8px;width:{{performance_score}}%;max-width:100%;"></div>
+                          </div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- ============================================
+               SECTION 6: BEVINDINGEN
+               ============================================ -->
+          <tr>
+            <td style="padding:0 0 16px 0;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#ffffff;border:1px solid #E8E2DC;border-radius:12px;">
+                <tr>
+                  <td style="padding:28px 32px 8px 32px;">
+                    <p style="margin:0;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;color:#9B8E82;">
+                      Bevindingen
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 32px 28px 32px;">
+
+                    <!--
+                      {{bevindingen}} will be replaced with HTML generated from a JSON array.
+                      Each item has: { severity: "Kritiek"|"Waarschuwing"|"Tip", title: "...", description: "...", impact: "..." }
+
+                      Expected HTML structure per finding:
+
+                      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:16px;">
+                        <tr>
+                          <td style="padding:16px;background-color:#FFFCF9;border-radius:8px;border-left:4px solid #DC2626;">
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                              <tr>
+                                <td style="padding-bottom:8px;">
+                                  <span style="display:inline-block;padding:2px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;border-radius:4px;color:#ffffff;background-color:#DC2626;">Kritiek</span>
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style="font-size:15px;font-weight:600;color:#2C2420;padding-bottom:4px;">
+                                  Finding title here
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style="font-size:14px;color:#5C5149;line-height:1.5;">
+                                  Finding description here
+                                </td>
+                              </tr>
+                              <tr>
+                                <td style="font-size:13px;color:#9B8E82;padding-top:6px;">
+                                  Impact: impact description here
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+
+                      Severity color mapping:
+                        Kritiek:       badge bg #DC2626, border-left #DC2626 (red)
+                        Waarschuwing:  badge bg #EA860B, border-left #EA860B (orange)
+                        Tip:           badge bg #2E7DB5, border-left #2E7DB5 (blue)
+                    -->
+
+                    {{bevindingen}}
+
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- ============================================
+               SECTION 7: COMPETITOR COMPARISON
+               ============================================ -->
+          <tr>
+            <td style="padding:0 0 16px 0;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#ffffff;border:1px solid #E8E2DC;border-radius:12px;">
+                <tr>
+                  <td style="padding:28px 32px 8px 32px;">
+                    <p style="margin:0;font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:1.5px;color:#9B8E82;">
+                      Concurrentievergelijking
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 32px 28px 32px;">
+
+                    <!--
+                      {{concurrenten}} will be replaced with HTML generated from a JSON array.
+                      Each item has: { name: "...", url_masked: "...", score: 72 }
+
+                      Expected HTML structure per competitor:
+
+                      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:12px;">
+                        <tr>
+                          <td style="font-size:14px;font-weight:600;color:#2C2420;padding-bottom:2px;">
+                            Competitor Name
+                          </td>
+                          <td style="font-size:14px;font-weight:700;color:#9B8E82;text-align:right;padding-bottom:2px;">
+                            72<span style="font-weight:400;font-size:12px;">/100</span>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td colspan="2" style="padding-bottom:2px;">
+                            <div style="background-color:#F3F0ED;border-radius:6px;height:8px;width:100%;">
+                              <div style="background-color:#9B8E82;border-radius:6px;height:8px;width:72%;"></div>
+                            </div>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td colspan="2" style="font-size:12px;color:#B5A99E;">
+                            comp*****.nl
+                          </td>
+                        </tr>
+                      </table>
+
+                      The client's own score bar should use #D97757 (terracotta) to stand out,
+                      while competitor bars use #9B8E82 (muted gray).
+                    -->
+
+                    <!-- Client's own score (highlighted) -->
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-bottom:16px;">
+                      <tr>
+                        <td style="font-size:14px;font-weight:600;color:#D97757;padding-bottom:2px;">
+                          {{bedrijfsnaam}} (u)
+                        </td>
+                        <td style="font-size:14px;font-weight:700;color:#D97757;text-align:right;padding-bottom:2px;">
+                          {{geo_score}}<span style="font-weight:400;font-size:12px;">/100</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td colspan="2" style="padding:0;">
+                          <div style="background-color:#F3F0ED;border-radius:6px;height:10px;width:100%;">
+                            <div style="background-color:#D97757;border-radius:6px;height:10px;width:{{geo_score}}%;max-width:100%;"></div>
+                          </div>
+                        </td>
+                      </tr>
+                    </table>
+
+                    {{concurrenten}}
+
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- ============================================
+               SECTION 8: CTA
+               ============================================ -->
+          <tr>
+            <td style="padding:0 0 16px 0;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#ffffff;border:1px solid #E8E2DC;border-radius:12px;">
+                <tr>
+                  <td align="center" style="padding:40px 32px;">
+
+                    <!--
+                      CTA variant based on {{toestemming}}
+                      Server will include ONE of the two blocks below depending on value.
+
+                      === VARIANT: toestemming = "ja" ===
+                    -->
+
+                    {{#toestemming_ja}}
+                    <p style="margin:0 0 8px 0;font-size:20px;font-weight:700;color:#2C2420;">
+                      Klaar om uw AI-zichtbaarheid te verbeteren?
+                    </p>
+                    <p style="margin:0 0 24px 0;font-size:15px;color:#5C5149;line-height:1.6;">
+                      Wij koppelen u vrijblijvend aan een specialist die uw GEO-score kan verhogen.
+                    </p>
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td align="center" style="background-color:#D97757;border-radius:8px;">
+                          <!--[if mso]>
+                          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" href="https://rjmedia.nl/geo-specialist" style="height:48px;width:280px;v-text-anchor:middle;" arcsize="17%" fillcolor="#D97757" stroke="f">
+                            <center style="color:#ffffff;font-family:system-ui,-apple-system,sans-serif;font-size:16px;font-weight:700;">Plan een vrijblijvend gesprek</center>
+                          </v:roundrect>
+                          <![endif]-->
+                          <!--[if !mso]><!-->
+                          <a href="https://rjmedia.nl/geo-specialist" target="_blank" style="display:inline-block;padding:14px 36px;background-color:#D97757;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;border-radius:8px;font-family:system-ui,-apple-system,sans-serif;">
+                            Plan een vrijblijvend gesprek
+                          </a>
+                          <!--<![endif]-->
+                        </td>
+                      </tr>
+                    </table>
+                    {{/toestemming_ja}}
+
+                    <!--
+                      === VARIANT: toestemming = "nee" ===
+                    -->
+
+                    {{#toestemming_nee}}
+                    <p style="margin:0 0 8px 0;font-size:20px;font-weight:700;color:#2C2420;">
+                      Uw rapport staat klaar
+                    </p>
+                    <p style="margin:0 0 16px 0;font-size:15px;color:#5C5149;line-height:1.6;">
+                      Wilt u later alsnog met een specialist spreken over uw AI-zichtbaarheid?
+                    </p>
+                    <a href="https://rjmedia.nl/geo-contact" target="_blank" style="font-size:15px;color:#D97757;font-weight:600;text-decoration:underline;">
+                      Klik hier om contact op te nemen &rarr;
+                    </a>
+                    {{/toestemming_nee}}
+
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- ============================================
+               SECTION 9: FOOTER
+               ============================================ -->
+          <tr>
+            <td style="padding:16px 32px 8px 32px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                <tr>
+                  <td align="center" style="padding-bottom:16px;">
+                    <span style="font-size:20px;font-weight:800;color:#D97757;">RJ Media</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="font-size:13px;color:#9B8E82;line-height:1.6;padding-bottom:12px;">
+                    RJ Media B.V.<br>
+                    <a href="mailto:info@rjmedia.nl" style="color:#9B8E82;text-decoration:underline;">info@rjmedia.nl</a>
+                    &nbsp;&middot;&nbsp;
+                    <a href="https://rjmedia.nl" style="color:#9B8E82;text-decoration:underline;">rjmedia.nl</a>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="border-top:1px solid #E8E2DC;padding-top:16px;padding-bottom:8px;">
+                    <p style="margin:0;font-size:11px;color:#B5A99E;line-height:1.5;">
+                      Dit rapport is automatisch gegenereerd door de RJ Media GEO Lead Engine op basis van
+                      publiek beschikbare gegevens. De scores zijn indicatief en vormen geen garantie.
+                      &copy; {{datum}} RJ Media B.V. Alle rechten voorbehouden.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <td align="center" style="padding:8px 0 16px 0;">
+                    <a href="https://rjmedia.nl/afmelden" style="font-size:11px;color:#B5A99E;text-decoration:underline;">
+                      Afmelden voor toekomstige rapporten
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+        </table>
+        <!-- /Main container -->
+
+      </td>
+    </tr>
+  </table>
+  <!-- /Outer wrapper -->
+
+</body>
+</html>

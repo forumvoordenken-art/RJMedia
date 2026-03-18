@@ -1,0 +1,93 @@
+{
+  "name": "GEO Lead Engine — Branch 2: Performance",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "geo-branch2-test",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "b2-webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url={{ encodeURIComponent($json.url) }}&strategy=mobile",
+        "options": { "timeout": 30000 }
+      },
+      "id": "b2-psi-mobile",
+      "name": "PageSpeed Mobile",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [470, 200],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url={{ encodeURIComponent($json.url) }}&strategy=desktop",
+        "options": { "timeout": 30000 }
+      },
+      "id": "b2-psi-desktop",
+      "name": "PageSpeed Desktop",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [470, 400],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "id": "b2-merge",
+      "name": "Merge Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst mobileResp = items[0]?.json || {};\nconst desktopResp = items[1]?.json || {};\n\nfunction extractVitals(resp) {\n  if (!resp.lighthouseResult) return { score: 0, lcp: null, cls: null, tbt: null };\n  const lr = resp.lighthouseResult;\n  return {\n    score: Math.round(((lr.categories?.performance?.score) || 0) * 100),\n    lcp: lr.audits?.['largest-contentful-paint']?.numericValue || null,\n    cls: lr.audits?.['cumulative-layout-shift']?.numericValue || null,\n    tbt: lr.audits?.['total-blocking-time']?.numericValue || null\n  };\n}\n\nreturn [{ json: { mobile: extractVitals(mobileResp), desktop: extractVitals(desktopResp) } }];"
+      },
+      "id": "b2-extract",
+      "name": "Extract Web Vitals",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [910, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}"
+      },
+      "id": "b2-respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1130, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          { "node": "PageSpeed Mobile", "type": "main", "index": 0 },
+          { "node": "PageSpeed Desktop", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "PageSpeed Mobile": { "main": [[{ "node": "Merge Results", "type": "main", "index": 0 }]] },
+    "PageSpeed Desktop": { "main": [[{ "node": "Merge Results", "type": "main", "index": 1 }]] },
+    "Merge Results": { "main": [[{ "node": "Extract Web Vitals", "type": "main", "index": 0 }]] },
+    "Extract Web Vitals": { "main": [[{ "node": "Respond", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "branch2-v1",
+  "meta": { "instanceId": "geo-lead-engine" }
+}

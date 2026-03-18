@@ -1,0 +1,77 @@
+{
+  "name": "GEO Lead Engine — Branch 3: AI Citations",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "geo-branch3-test",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "b3-webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { branche, stad } = $json;\nconst templates = [\n  'Beste {b} in {s}',\n  'Welk(e) {b} raad je aan in {s}?',\n  '{b} met goede reviews {s}',\n  'Waar kan ik een goede {b} vinden in {s}?',\n  'Top {b} {s} centrum',\n  'Gezellige {b} in {s} voor een avondje uit',\n  'Beste {b} met de hoogste klanttevredenheid in {s}',\n  '{b} {s} met goed aanbod',\n  'Premium {b} in {s}',\n  'Betaalbare {b} {s} met goede service'\n];\nconst prompts = templates.map(t => t.replace(/\\{b\\}/g, branche).replace(/\\{s\\}/g, stad));\nconst systemPrompt = 'Je bent een hulpmiddel dat zoekvragen beantwoordt. Antwoord UITSLUITEND in dit JSON format, geen tekst eromheen: {\"recommendations\": [{\"name\": \"Bedrijfsnaam\", \"reason\": \"Korte reden\", \"position\": 1}], \"total_results\": 5} Noem maximaal 10 bedrijven.';\n\nreturn prompts.map(p => ({ json: { prompt: p, systemPrompt, branche, stad, url: $json.url } }));"
+      },
+      "id": "b3-prompts",
+      "name": "Generate Prompts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"model\": \"gpt-4o-mini\", \"messages\": [{\"role\": \"system\", \"content\": \"{{ $json.systemPrompt }}\"}, {\"role\": \"user\", \"content\": \"{{ $json.prompt }}\"}], \"temperature\": 0.3 }",
+        "options": { "timeout": 30000 }
+      },
+      "id": "b3-openai",
+      "name": "OpenAI Query",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [690, 300],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst url = items[0]?.json?.url || '';\n\nfunction normalizeName(name) {\n  if (!name) return '';\n  return name.toLowerCase().replace(/\\b(de|het|een|bv|b\\.v\\.)\\b/g, '').replace(/[^a-z0-9\\s]/g, '').replace(/\\s+/g, ' ').trim();\n}\nfunction namesMatch(a, b) {\n  const n1 = normalizeName(a), n2 = normalizeName(b);\n  if (!n1 || !n2) return false;\n  return n1 === n2 || n1.includes(n2) || n2.includes(n1);\n}\n\nlet citationCount = 0;\nconst positions = [];\nconst competitors = {};\n\nfor (const item of items) {\n  try {\n    const content = item.json?.choices?.[0]?.message?.content || '';\n    let jsonStr = content.trim();\n    const codeBlock = jsonStr.match(/```(?:json)?\\s*([\\s\\S]*?)```/);\n    if (codeBlock) jsonStr = codeBlock[1];\n    const jsonMatch = jsonStr.match(/\\{[\\s\\S]*\\}/);\n    if (jsonMatch) jsonStr = jsonMatch[0];\n    const parsed = JSON.parse(jsonStr);\n    let found = false;\n    for (const rec of (parsed.recommendations || [])) {\n      if (namesMatch(rec.name, url)) {\n        if (!found) { citationCount++; positions.push(rec.position || 1); found = true; }\n      } else if (rec.name) {\n        competitors[rec.name] = (competitors[rec.name] || 0) + 1;\n      }\n    }\n  } catch (e) { }\n}\n\nconst topCompetitors = Object.entries(competitors).sort((a,b) => b[1]-a[1]).slice(0,10).map(([name,count]) => ({name,count}));\n\nreturn [{ json: {\n  platform: 'openai',\n  citation_rate: citationCount,\n  citation_total: items.length,\n  avg_position: positions.length ? Math.round(positions.reduce((a,b)=>a+b,0)/positions.length*10)/10 : null,\n  competitors: topCompetitors\n} }];"
+      },
+      "id": "b3-parse",
+      "name": "Parse Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [910, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}"
+      },
+      "id": "b3-respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1130, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Generate Prompts", "type": "main", "index": 0 }]] },
+    "Generate Prompts": { "main": [[{ "node": "OpenAI Query", "type": "main", "index": 0 }]] },
+    "OpenAI Query": { "main": [[{ "node": "Parse Results", "type": "main", "index": 0 }]] },
+    "Parse Results": { "main": [[{ "node": "Respond", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "branch3-v1",
+  "meta": { "instanceId": "geo-lead-engine" }
+}
